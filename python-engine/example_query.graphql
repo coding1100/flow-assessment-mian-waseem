@@ -1,0 +1,38 @@
+# Example GraphQL query for scoreCandidates operation
+# 
+# Usage: POST to /graphql with this query
+#
+query ScoreCandidates {
+  scoreCandidates(
+    tenantId: 1
+    topN: 5
+    invoices: [
+      {
+        id: 1
+        vendorId: 1
+        invoiceNumber: "INV-001"
+        invoiceDatetime: "2024-01-15T10:00:00Z"
+        amount: 1000.50
+        currency: "USD"
+        description: "Office supplies purchase"
+        vendorName: "Office Depot"
+      }
+    ]
+    transactions: [
+      {
+        id: 1
+        externalId: "TXN-001"
+        postedAt: "2024-01-16T14:30:00Z"
+        amount: 1000.50
+        currency: "USD"
+        description: "Office Depot - Office supplies purchase"
+      }
+    ]
+  ) {
+    invoiceId
+    transactionId
+    score
+    explanations
+  }
+}
+

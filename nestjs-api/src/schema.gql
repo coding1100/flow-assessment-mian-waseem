@@ -1,0 +1,187 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type BankTransaction {
+  amount: Float!
+  createdAt: DateTime!
+  currency: String!
+  description: String
+  externalId: String!
+  id: Int!
+  postedAt: DateTime!
+  tenantId: Int!
+}
+
+type BankTransactionConnection {
+  edges: [BankTransactionEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type BankTransactionEdge {
+  cursor: String!
+  node: BankTransaction!
+}
+
+input BankTransactionFilters {
+  fromDate: String
+  maxAmount: Float
+  minAmount: Float
+  toDate: String
+}
+
+input BankTransactionItemInput {
+  amount: Float!
+  currency: String
+  description: String
+  externalId: String!
+  postedAt: String!
+}
+
+input CreateInvoiceInput {
+  amount: Float!
+  currency: String
+  description: String
+  invoiceDatetime: String!
+  status: String
+  vendorId: Int!
+}
+
+input CreateTenantInput {
+  name: String!
+}
+
+input CreateVendorInput {
+  name: String!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+input ImportBankTransactionsInput {
+  idempotencyKey: String
+  transactions: [BankTransactionItemInput!]!
+}
+
+type ImportBankTransactionsResponse {
+  imported: Int!
+  transactions: [BankTransaction!]!
+}
+
+type Invoice {
+  amount: Float!
+  createdAt: DateTime!
+  currency: String!
+  description: String
+  id: Int!
+  invoiceDatetime: DateTime!
+  invoiceNumber: String!
+  status: String!
+  tenantId: Int!
+  vendorId: Int!
+}
+
+type InvoiceConnection {
+  edges: [InvoiceEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type InvoiceEdge {
+  cursor: String!
+  node: Invoice!
+}
+
+input InvoiceFilters {
+  fromDate: String
+  maxAmount: Float
+  minAmount: Float
+  status: String
+  toDate: String
+  vendorId: Int
+}
+
+type Match {
+  bankTransactionId: Int!
+  createdAt: DateTime!
+  id: Int!
+  invoiceId: Int!
+  score: Float!
+  status: String!
+  tenantId: Int!
+}
+
+type MatchCandidate {
+  id: Int!
+  invoiceId: Int!
+  score: Float!
+  status: String!
+  transactionId: Int!
+}
+
+input MatchCandidateFilters {
+  maxScore: Int
+  minScore: Int
+  status: String
+}
+
+type Mutation {
+  confirmMatch(matchId: Int!, tenantId: Int!): Match!
+  createInvoice(input: CreateInvoiceInput!, tenantId: Int!): Invoice!
+  createTenant(input: CreateTenantInput!): Tenant!
+  createVendor(input: CreateVendorInput!, tenantId: Int!): Vendor!
+  deleteInvoice(invoiceId: Int!, tenantId: Int!): Boolean!
+  importBankTransactions(idempotencyKey: String, input: ImportBankTransactionsInput!, tenantId: Int!): ImportBankTransactionsResponse!
+  reconcile(input: ReconcileInput, tenantId: Int!): ReconcileResponse!
+}
+
+type PageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+}
+
+input PaginationInput {
+  limit: Int = 10
+  page: Int = 1
+}
+
+type Query {
+  bankTransactions(filters: BankTransactionFilters, pagination: PaginationInput, tenantId: Int!): BankTransactionConnection!
+  explainReconciliation(invoiceId: Int!, tenantId: Int!, transactionId: Int!): ReconciliationExplanation!
+  invoices(filters: InvoiceFilters, pagination: PaginationInput, tenantId: Int!): InvoiceConnection!
+  matchCandidates(filters: MatchCandidateFilters, tenantId: Int!): [MatchCandidate!]!
+  tenants: [Tenant!]!
+  vendors(tenantId: Int!): [Vendor!]!
+}
+
+input ReconcileInput {
+  topN: Int
+}
+
+type ReconcileResponse {
+  candidates: [Match!]!
+  message: String
+}
+
+type ReconciliationExplanation {
+  explanations: [String!]!
+  score: Float!
+}
+
+type Tenant {
+  createdAt: DateTime!
+  id: Int!
+  name: String!
+}
+
+type Vendor {
+  createdAt: DateTime!
+  id: Int!
+  name: String!
+  tenantId: Int!
+}
