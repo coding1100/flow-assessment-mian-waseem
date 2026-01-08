@@ -6,36 +6,9 @@ A multi-service application for reconciling invoices with bank transactions usin
 
 This project consists of three main services:
 
-1. **PostgreSQL Database** - Stores tenants, vendors, invoices, bank transactions, and matches
-2. **NestJS API** - Main REST and GraphQL API for managing tenants, vendors, invoices, bank transactions, and reconciliation
-3. **Python Engine** - FastAPI-based reconciliation engine that performs deterministic matching and scoring
-
-## Services Overview
-
-### PostgreSQL Database
-- Stores all application data including tenants, vendors, invoices, bank transactions, and matches
-- Uses Row-Level Security (RLS) for multi-tenant data isolation
-- Default port: `5432`
-
-### NestJS API
-- **Port**: `3000`
-- **Framework**: NestJS with GraphQL
-- **Features**:
-  - REST API endpoints for CRUD operations
-  - GraphQL API for flexible queries
-  - JWT-based authentication with role-based access control
-  - Multi-tenant support with RLS
-  - Reconciliation orchestration
-  - AI-powered match explanations (optional)
-
-### Python Engine
-- **Port**: `8000`
-- **Framework**: FastAPI with Strawberry GraphQL
-- **Features**:
-  - Deterministic reconciliation engine
-  - Heuristic-based matching and scoring
-  - GraphQL API for scoring candidates
-  - No AI dependencies (pure algorithmic matching)
+1. **PostgreSQL Database** - Stores tenants, vendors, invoices, bank transactions, and matches with Row-Level Security (RLS) for multi-tenant isolation
+2. **NestJS API** - Main REST and GraphQL API (port 3000) with JWT authentication, multi-tenant support, and reconciliation orchestration
+3. **Python Engine** - FastAPI-based reconciliation engine (port 8000) that performs deterministic matching and scoring
 
 ## Prerequisites
 
@@ -54,7 +27,7 @@ cd flow-assessment-mian-waseem
 
 ### 2. Environment Configuration
 
-Create a `.env` file in the root directory with the following variables:
+Create a `.env` file in the root directory:
 
 ```env
 # Database Configuration
@@ -75,33 +48,24 @@ PYTHON_ENGINE_PORT=8000
 OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-### 3. Start Services with Docker Compose
+### 3. Start Services
 
 ```bash
 docker-compose up -d
 ```
 
-This will start all three services:
-- PostgreSQL database
-- NestJS API (with hot-reload in development)
-- Python Engine (with hot-reload in development)
-
-### 4. Verify Services
-
-Check that all services are running:
-
+This starts all three services. Verify with:
 ```bash
 docker-compose ps
 ```
 
-Health check endpoints:
+Health checks:
 - NestJS API: `http://localhost:3000/health`
 - Python Engine: `http://localhost:8000/health`
 
-### 5. Database Migrations
+### 4. Database Migrations
 
-The Python engine uses Alembic for database migrations. Migrations should run automatically, but you can run them manually:
-
+Migrations run automatically, or manually:
 ```bash
 docker-compose exec python-engine alembic upgrade head
 ```
@@ -119,224 +83,75 @@ docker-compose logs -f
 
 # Stop all services
 docker-compose down
-
-# Stop and remove volumes (clean slate)
-docker-compose down -v
 ```
 
 ### Local Development
 
-#### NestJS API
-
+**NestJS API:**
 ```bash
 cd nestjs-api
 npm install
 npm run start:dev
 ```
 
-#### Python Engine
-
+**Python Engine:**
 ```bash
 cd python-engine
 pip install -r requirements.txt
 uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-**Note**: For local development, ensure PostgreSQL is running and update the `DATABASE_URL` in your environment accordingly.
-
 ## API Endpoints
 
-### NestJS API
+- **NestJS REST API**: `http://localhost:3000`
+- **NestJS GraphQL Playground**: `http://localhost:3000/graphql`
+- **Python Engine GraphQL**: `http://localhost:8000/graphql`
 
-- **REST API**: `http://localhost:3000`
-- **GraphQL Playground**: `http://localhost:3000/graphql`
+## Authentication
 
-### Python Engine
+The NestJS API uses JWT authentication. **Note**: As this was a technical assessment, user credentials are not stored in the database to keep the scope contained. The authentication endpoint generates a JWT token without database validation.
 
-- **GraphQL API**: `http://localhost:8000/graphql`
-- **Health Check**: `http://localhost:8000/health`
+### Getting a JWT Token
 
-## Reconciliation Process
-
-### Overview
-
-The reconciliation process matches invoices with bank transactions using a deterministic scoring algorithm. The process is orchestrated by the NestJS API and executed by the Python Engine.
-
-### Reconciliation Flow in NestJS API
-
-1. **Trigger Reconciliation**
-   - Endpoint: `POST /tenants/:tenantId/reconcile`
-   - GraphQL: `mutation reconcile(tenantId: Int!, input: ReconcileInput)`
-   - Parameters:
-     - `tenantId`: The tenant identifier
-     - `topN`: Number of top candidates to return per invoice/transaction (default: 10)
-
-2. **Data Fetching**
-   - Fetches all invoices for the tenant (with vendor information)
-   - Fetches all bank transactions for the tenant
-   - Validates that both invoices and transactions exist
-
-3. **Python Engine Call**
-   - Sends invoices and transactions to Python Engine via GraphQL
-   - Python Engine computes match scores for all invoice-transaction pairs
-   - Returns top N candidates sorted by score
-
-4. **Match Storage**
-   - Deletes existing `PROPOSED` matches for the tenant
-   - Stores new proposed matches in the database with:
-     - `invoiceId`: Reference to the invoice
-     - `bankTransactionId`: Reference to the bank transaction
-     - `score`: Match score (0-100+)
-     - `status`: `PROPOSED` (can be changed to `CONFIRMED`)
-
-5. **Response**
-   - Returns stored matches
-   - Groups candidates by invoice and by transaction
-   - Provides top N matches per invoice and per transaction
-
-### Match Confirmation
-
-After reconciliation, proposed matches can be confirmed:
-
-- Endpoint: `POST /tenants/:tenantId/matches/:matchId/confirm`
-- GraphQL: `mutation confirmMatch(tenantId: Int!, matchId: Int!)`
-- Changes match status from `PROPOSED` to `CONFIRMED`
-
-### Match Explanation
-
-Get detailed explanations for why an invoice and transaction were matched:
-
-- Endpoint: `GET /tenants/:tenantId/reconcile/explain?invoice_id=:invoiceId&transaction_id=:transactionId`
-- GraphQL: `query explainReconciliation(tenantId: Int!, invoiceId: Int!, transactionId: Int!)`
-- Returns heuristic score and explanations, optionally enhanced with AI-generated explanations
-
-## Reconciliation and Scoring in Python Engine
-
-### Scoring Algorithm
-
-The Python Engine uses a deterministic, heuristic-based scoring system. The total score is the sum of individual match factors:
-
-#### 1. Exact Amount Match (40 points)
-- Awarded when invoice and transaction amounts match exactly (within 0.01 tolerance)
-- Highest weight factor for exact matches
-
-#### 2. Amount Tolerance Match (up to 30 points)
-- Awarded when amounts are within 1% tolerance
-- Score decreases linearly as the difference increases
-- Formula: `30.0 * (1 - percentage_difference / 0.01)`
-
-#### 3. Date Proximity Match (up to 20 points)
-- Awarded when invoice date and transaction date are within ±3 days
-- Score decreases as the day difference increases
-- Formula: `20.0 * (1 - days_difference / 3)`
-
-#### 4. Text Similarity Match (up to 15 points)
-- Awarded when invoice description and transaction description are similar
-- Uses Python's `difflib.SequenceMatcher` for similarity calculation
-- If one description contains the other: 15 points
-- If similarity ratio ≥ 60%: `10.0 * similarity_ratio`
-
-#### 5. Vendor Name Match (up to 10 points)
-- Awarded when vendor name appears in transaction description
-- Exact match: 10 points
-- Partial match (significant words > 3 characters): 5 points
-
-### Scoring Process
-
-1. **Currency Validation**
-   - Only matches invoices and transactions with the same currency
-   - Skips pairs with mismatched currencies
-
-2. **Pairwise Scoring**
-   - For each invoice-transaction pair:
-     - Computes all match factors
-     - Sums the scores
-     - Generates human-readable explanations for each factor that contributed
-
-3. **Candidate Selection**
-   - Filters out pairs with score = 0
-   - Sorts all candidates by score (descending)
-   - Returns top N candidates
-
-4. **Explanations**
-   - Each candidate includes a list of explanations:
-     - "Exact amount match"
-     - "Amount match within tolerance (X% difference)"
-     - "Date proximity match (within X days)"
-     - "Text similarity match (X% similarity)"
-     - "Vendor name found in transaction description"
-
-### Example Scoring
-
-```
-Invoice: $1000.00, Date: 2024-01-15, Vendor: "Acme Corp"
-Transaction: $1000.00, Date: 2024-01-16, Description: "Payment to Acme Corp"
-
-Score Breakdown:
-- Exact amount match: 40 points
-- Date proximity (1 day): ~13.3 points
-- Vendor name match: 10 points
-- Text similarity: 15 points (if descriptions match)
-Total: ~78.3 points
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user123",
+    "email": "user@example.com",
+    "orgId": "1",
+    "roles": ["user"]
+  }'
 ```
 
-### GraphQL API
-
-The Python Engine exposes a GraphQL endpoint:
-
-```graphql
-query ScoreCandidates(
-  $tenantId: Int!
-  $invoices: [InvoiceInput!]!
-  $transactions: [BankTransactionInput!]!
-  $topN: Int!
-) {
-  scoreCandidates(
-    tenantId: $tenantId
-    invoices: $invoices
-    transactions: $transactions
-    topN: $topN
-  ) {
-    invoiceId
-    transactionId
-    score
-    explanations
-  }
+**Response:**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_in": "1d",
+  "token_type": "Bearer"
 }
 ```
 
-## Development
-
-### Running Tests
-
-#### NestJS API
+Use the token in subsequent requests:
 ```bash
-cd nestjs-api
-npm test
-npm run test:e2e
+curl -X GET http://localhost:3000/tenants \
+  -H "Authorization: Bearer <your_token>"
 ```
 
-#### Python Engine
-```bash
-cd python-engine
-pytest
-```
+## Reconciliation Overview
 
-### Code Formatting
+The reconciliation process matches invoices with bank transactions using a deterministic scoring algorithm:
 
-#### NestJS API
-```bash
-cd nestjs-api
-npm run format
-npm run lint
-```
-
-#### Python Engine
-```bash
-cd python-engine
-black src/
-flake8 src/
-```
+1. **Trigger**: `POST /tenants/:tenantId/reconcile` or GraphQL `mutation reconcile`
+2. **Process**: NestJS API fetches invoices and transactions, sends them to Python Engine for scoring
+3. **Scoring**: Python Engine computes match scores based on:
+   - Exact amount match (40 points)
+   - Amount tolerance match (up to 30 points)
+   - Date proximity match (up to 20 points)
+   - Text similarity match (up to 15 points)
+   - Vendor name match (up to 10 points)
+4. **Result**: Top N candidates stored as `PROPOSED` matches, can be confirmed via `POST /tenants/:tenantId/matches/:matchId/confirm`
 
 ## Project Structure
 
@@ -366,19 +181,35 @@ flow-assessment-mian-waseem/
 └── README.md
 ```
 
-## Troubleshooting
+## Development
 
-### Services won't start
-- Check Docker is running: `docker ps`
-- Check ports are not in use: `lsof -i :3000`, `lsof -i :8000`, `lsof -i :5432`
-- Review logs: `docker-compose logs`
+**Tests:**
+```bash
+# NestJS API
+cd nestjs-api && npm test
 
-### Database connection errors
-- Ensure PostgreSQL is healthy: `docker-compose ps postgres`
-- Check environment variables in `.env`
-- Verify database credentials
+# Python Engine
+cd python-engine && pytest
+```
 
-### Reconciliation returns no matches
-- Ensure invoices and transactions exist for the tenant
-- Check currency matches between invoices and transactions
-- Verify Python Engine is accessible: `curl http://localhost:8000/health`
+**Code Formatting:**
+```bash
+# NestJS API
+cd nestjs-api && npm run format && npm run lint
+
+# Python Engine
+cd python-engine && black src/ && flake8 src/
+```
+
+## Future Enhancements
+
+For a full-fledged production product, the following enhancements would be considered:
+
+- User authentication system with registration, password management, and OAuth2/SSO integration
+- Web-based dashboard with real-time reconciliation status and interactive match review interface
+- Machine learning-based matching algorithms with configurable scoring weights per tenant
+- Bank API and accounting software integrations (QuickBooks, Xero) for automatic data imports
+- Background job processing and caching layer for improved performance and scalability
+- Scheduled automatic reconciliation jobs with approval workflows for high-value matches
+- Comprehensive reporting and analytics with customizable dashboards and export capabilities
+- Enhanced security features including audit logging, data encryption, and compliance (GDPR, SOC 2)
